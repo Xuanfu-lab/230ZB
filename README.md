@@ -1,3 +1,3 @@
-MFE 230ZA Project
+MFE 230ZB Project
 
 See main.ipynb for details
