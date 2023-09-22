@@ -1,17 +1,18 @@
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import LSTM, Flatten, Dense
-from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Flatten, Dense, Input
+from tensorflow.keras.models import Sequential, Model
 import tensorflow.keras.backend as K
 
 
 class Model_LSTM:
-    def __init__(self, loss = "paper", reg = False):
+    def __init__(self, loss = "paper", reg = False, structure_change = False):
         self.data = None
         self.model = None
         self.loss = loss
         self.reg = reg
+        self.structure_change = structure_change
         
 
     def __build_model(self, input_shape, outputs):
@@ -22,18 +23,31 @@ class Model_LSTM:
         inputs: input_shape - tuple of the input shape, outputs - the number of assets
         returns: a Deep Neural Network model
         '''
-        if self.reg == False:
+
+        kernel_regularizer = None
+        if self.reg:
+            kernel_regularizer = tf.keras.regularizers.l2(10)
+
+        if self.structure_change == "autoencoder":
+            input_encoder = Input(shape=input_shape)
+            # encoding_dim is the desired dimensionality of the encoded representation
+            n_row, n_col = input_shape
+            encoding_dim = 0.5 * n_col
+            encoded = Dense(encoding_dim, activation='relu')(input_encoder)  
+            encoder_model = Model(input_encoder, encoded)
             model = Sequential([
-                LSTM(64, input_shape=input_shape),
+                encoder_model,
+                LSTM(64),
                 Flatten(),
-                Dense(outputs, activation='softmax')
+                Dense(outputs, activation='softmax', kernel_regularizer = kernel_regularizer)
             ])
         else:
             model = Sequential([
                 LSTM(64, input_shape=input_shape),
                 Flatten(),
-                Dense(outputs, activation='softmax', kernel_regularizer=tf.keras.regularizers.l2(10))
+                Dense(outputs, activation='softmax', kernel_regularizer = kernel_regularizer)
             ])
+
             
             
         def sharpe_loss(_, y_pred):

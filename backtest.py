@@ -29,8 +29,6 @@ def maximum_drawdown(pnl: pd.Series):
 
 
 
-
-
 def backtest(weight_long):
     data = weight_long.copy()
     data["ret"] = data.groupby("Ticker")["Price"].transform(lambda x: x.shift(-1)/x -1)

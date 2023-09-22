@@ -5,13 +5,11 @@ from model import Model_LSTM
 
 
 class portfolio_optimizer:
-    def __init__(self, price_long, loss = "paper", reg = False):
+    def __init__(self, price_long):
         self.price_long = price_long
         self.price_wide = price_long.pivot(index='Date', columns='Ticker', values='Price')
         self.return_wide = self.price_wide.pct_change().iloc[1:,:] #drop 1st row
         self.weight_long = None
-        self.loss = loss
-        self.reg = reg
     
 
     def __optimize_1_run_non_ML(self, returns:pd.DataFrame, period:int, loss_func:str, cov_estimation:str):
@@ -103,14 +101,14 @@ class portfolio_optimizer:
                             })
 
 
-    def __optimize_1_run_LSTM(self, price_wide:pd.DataFrame, period:int):
+    def __optimize_1_run_LSTM(self, price_wide:pd.DataFrame, period:int, loss:str, reg:bool, structure_change):
         tickers = price_wide.columns
         date = price_wide.index[-1]
         return_wide = price_wide.pct_change().dropna()
         num_assets = price_wide.shape[1]
         annualized_vol = return_wide.std() * np.sqrt(252)
         
-        model = Model_LSTM(loss = self.loss, reg = self.reg)              
+        model = Model_LSTM(loss = loss, reg = reg, structure_change = structure_change)              
         weights = model.get_allocations(price_wide)
         
         return pd.DataFrame({'Date':date, 
@@ -120,7 +118,14 @@ class portfolio_optimizer:
                             })
 
 
-    def optimize(self, method:str, cov_estimation:str='historical', period:int=252):
+    def optimize(self, 
+                 method:str, 
+                 cov_estimation:str='historical', 
+                 period:int=252, 
+                 loss = "paper", 
+                 reg = False,
+                 structure_change = False,
+                ):
         n_rebalance = self.price_wide.shape[0] // period
         weights = pd.DataFrame(columns=['Date', 'Ticker', 'Weight', 'Annualized_vol'])
         if method == "LSTM":
@@ -130,7 +135,7 @@ class portfolio_optimizer:
                 prices = chunk.dropna(thresh = period - na_threshold, axis=1)
                 prices = prices.fillna(method = 'ffill')
                 prices = prices.iloc[-50:, :] # paper says only use that last 50 days info, make sure period > 50
-                chunk_weights = self.__optimize_1_run_LSTM(prices, period)
+                chunk_weights = self.__optimize_1_run_LSTM(prices, period, loss, reg, structure_change)
                 weights = pd.concat([weights, chunk_weights], axis=0, ignore_index=True)
         else:
             chunks = [self.return_wide.iloc[i:i+period, :] for i in range(0, period * n_rebalance, period)]
@@ -149,29 +154,3 @@ class portfolio_optimizer:
         self.weight_long = weights.reset_index(drop=True).dropna()
         print("successfully optimized portfolio weights")
         return self.weight_long
-    
-    
-    def optimize_LSTM_reg(self, period):
-        n_rebalance = self.price_wide.shape[0] // period
-
-        chunks = [self.price_wide.iloc[i:i+period, :] for i in range(0, period * n_rebalance, period)]
-        weights = pd.DataFrame(columns=['Date', 
-                                        'Ticker', 
-                                        'Weight', 
-                                        'Annualized_vol'])
-
-        for chunk in chunks: # each chunk is a price data (wide format)
-            na_threshold = 5 # drop ticker w/ >5 NaN, fill ticker w/ <=5 NaN with 0
-            prices = chunk.dropna(thresh = period-na_threshold, axis=1)
-            prices = prices.fillna(method = 'ffill')
-            prices = prices.iloc[-50:, :] # paper says only use that last 50 days info
-
-            chunk_weights = self.__optimize_1_run_LSTM(prices, period)
-            weights = pd.concat([weights, chunk_weights], axis=0, ignore_index=True)
-
-        weights = pd.merge(weights, self.price_long[['Date', 'Ticker', 'Price']], on=['Date', 'Ticker'], how='right')
-        weights.sort_values('Date',inplace=True)
-        weights["Weight"] = weights.groupby("Ticker")["Weight"].fillna(method='ffill',axis=0)
-        weights["Annualized_vol"] = weights.groupby("Ticker")["Annualized_vol"].fillna(method='ffill',axis=0)
-        return weights.reset_index(drop=True).dropna()
-
