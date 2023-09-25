@@ -7,7 +7,7 @@ from typing import List
 
 # Auxuliary Functions
 def maximum_drawdown(pnl: pd.Series):
-    nav = (1 + pnl).cumprod()
+    nav = 1 + pnl.cumsum()
     running_max = nav.cummax()
     drawdown = (nav - running_max) / running_max
     max_drawdown = drawdown.min()
