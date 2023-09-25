@@ -1,10 +1,9 @@
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import LSTM, Flatten, Dense, Input, Conv1D, MaxPooling1D
+from tensorflow.keras.layers import LSTM, Flatten, Dense, Input, Conv1D, MaxPooling1D, BatchNormalization, Dropout
 from tensorflow.keras.models import Sequential, Model
 import tensorflow.keras.backend as K
-
 
 class Model_LSTM:
     def __init__(self, loss = "paper", reg = False, structure_change = False):
@@ -107,6 +106,20 @@ class Model_LSTM:
            
             model = Model(input_layer, output_layer)
 
+        elif self.structure_change == "Double_LSTM":
+            model = Sequential([
+                # First LSTM Layer with Dropout and Recurrent Dropout
+                LSTM(64, return_sequences=True, dropout=0.2, recurrent_dropout=0.2, input_shape=input_shape),
+                BatchNormalization(),  # Batch Normalization after the first LSTM layer
+
+                # Second LSTM Layer with Dropout and Recurrent Dropout
+                LSTM(32, return_sequences=False, dropout=0.2, recurrent_dropout=0.2),
+                BatchNormalization(),  # Batch Normalization after the second LSTM layer
+
+                Flatten(),
+                Dense(outputs, activation='softmax', kernel_regularizer=kernel_regularizer)
+            ])
+
         else:
             model = Sequential([
                 LSTM(64, input_shape=input_shape),
@@ -115,7 +128,7 @@ class Model_LSTM:
             ])
 
             
-            
+        @tf.autograph.experimental.do_not_convert   
         def sharpe_loss(_, y_pred):
             # make all time-series start at 1
             data = tf.divide(self.data, self.data[0])  
