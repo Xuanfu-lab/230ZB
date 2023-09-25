@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import LSTM, Flatten, Dense, Input
+from tensorflow.keras.layers import LSTM, Flatten, Dense, Input, Conv1D, MaxPooling1D
 from tensorflow.keras.models import Sequential, Model
 import tensorflow.keras.backend as K
 
@@ -41,6 +41,72 @@ class Model_LSTM:
                 Flatten(),
                 Dense(outputs, activation='softmax', kernel_regularizer = kernel_regularizer)
             ])
+
+        elif self.structure_change == "SAE_CNN_LSTM":
+            # Define the Stacked Autoencoder
+            input_encoder = Input(shape=input_shape)
+            n_row, n_col = input_shape
+            encoding_dim_1 = int(0.75 * n_col)  # Adjust this as needed
+            encoding_dim_2 = 4  # Setting this to 4 to match your error description
+           
+            # Encoding layers (2 layers as an example for "stacked")
+            encoded_1 = Dense(encoding_dim_1, activation='relu')(input_encoder)
+            encoded_2 = Dense(encoding_dim_2, activation='relu')(encoded_1)
+           
+            encoder_model = Model(input_encoder, encoded_2)  # This model compresses the input
+           
+            # Define the combined model
+            input_layer = Input(shape=input_shape)
+           
+            # Pass input through the encoder
+            encoded_input = encoder_model(input_layer)
+           
+            # CNN component
+            x = Conv1D(32, 3, activation='relu')(encoded_input)
+            x = MaxPooling1D(2)(x)
+           
+            # LSTM and Dense layers
+            x = LSTM(64)(x)
+            x = Flatten()(x)
+            output_layer = Dense(outputs, activation='softmax', kernel_regularizer=kernel_regularizer)(x)
+           
+            model = Model(input_layer, output_layer)
+
+        elif self.structure_change == "SAE_3CNN_LSTM":
+            input_encoder = Input(shape=input_shape)
+            n_row, n_col = input_shape
+            encoding_dim_1 = int(0.75 * n_col)  # Adjust this as needed
+            encoding_dim_2 = 4  # Setting this to 4 to match your error description
+           
+            # Encoding layers (2 layers as an example for "stacked")
+            encoded_1 = Dense(encoding_dim_1, activation='relu')(input_encoder)
+            encoded_2 = Dense(encoding_dim_2, activation='relu')(encoded_1)
+           
+            encoder_model = Model(input_encoder, encoded_2)  # This model compresses the input
+           
+            # Define the combined model
+            input_layer = Input(shape=input_shape)
+           
+            # Pass input through the encoder
+            encoded_input = encoder_model(input_layer)
+           
+            # Enhanced CNN component
+            x = Conv1D(32, 3, activation='relu')(encoded_input)
+            x = MaxPooling1D(2)(x)
+           
+            x = Conv1D(64, 3, activation='relu')(x)  # Additional Conv layer with 64 filters
+            x = MaxPooling1D(2)(x)  # Additional MaxPooling layer
+           
+            x = Conv1D(128, 3, activation='relu')(x)  # Additional Conv layer with 128 filters
+            x = MaxPooling1D(2)(x)  # Additional MaxPooling layer
+           
+            # LSTM and Dense layers
+            x = LSTM(64)(x)
+            x = Flatten()(x)
+            output_layer = Dense(outputs, activation='softmax', kernel_regularizer=kernel_regularizer)(x)
+           
+            model = Model(input_layer, output_layer)
+
         else:
             model = Sequential([
                 LSTM(64, input_shape=input_shape),
