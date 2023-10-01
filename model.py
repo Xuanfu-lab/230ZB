@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.layers import LSTM, Flatten, Dense, Input, Conv1D, MaxPooling1D, BatchNormalization, Dropout
+from tensorflow.keras.layers import LSTM, Flatten, Dense, Input, Conv1D, MaxPooling1D, BatchNormalization, Dropout, Bidirectional
 from tensorflow.keras.models import Sequential, Model
 import tensorflow.keras.backend as K
 
@@ -120,6 +120,13 @@ class Model_LSTM:
                 Dense(outputs, activation='softmax', kernel_regularizer=kernel_regularizer)
             ])
 
+        elif self.structure_change == "BiLSTM":
+            model = Sequential([
+                Bidirectional(LSTM(64, return_sequences=True,dropout=0.2, input_shape=input_shape)),
+                Flatten(),
+                Dense(outputs, activation='softmax', kernel_regularizer=kernel_regularizer)
+            ])
+
         else:
             model = Sequential([
                 LSTM(64, input_shape=input_shape),
@@ -148,9 +155,10 @@ class Model_LSTM:
                 loss = K.mean(portfolio_returns)
             elif self.loss == "convex":
                 loss = K.mean(portfolio_returns) - K.std(portfolio_returns)
-
-            # since we want to maximize Sharpe, while gradient descent minimizes the loss, 
-            #   we can negate Sharpe (the min of a negated function is its max)
+            elif self.loss == "sortino":
+                loss = K.mean(portfolio_returns) / K.std(portfolio_returns[portfolio_returns<0])
+            elif self.loss == "sortino_convex":
+                loss = K.mean(portfolio_returns) - K.std(portfolio_returns[portfolio_returns<0])
             return -loss
         
         model.compile(loss=sharpe_loss, optimizer='adam')
